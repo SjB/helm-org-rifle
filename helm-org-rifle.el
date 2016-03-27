@@ -139,7 +139,7 @@ So be it, until victory is ours and there is no enemy, but
 peace!"
   (interactive)
   (let ((helm-candidate-separator " "))
-    (helm :sources (helm-org-rifle-get-sources))))
+    (helm :sources (helm-org-rifle-get-sources-for-open-buffers))))
 
 (defun helm-org-rifle-show-in-indirect-buffer (candidate)
   "Show CANDIDATE subtree in an indirect buffer."
@@ -161,7 +161,17 @@ peace!"
 That is, if its name starts with a space."
   (s-starts-with? " " (buffer-name buffer)))
 
-(defun helm-org-rifle-get-sources ()
+
+(defun helm-org-rifle-get-sources-for-files (files)
+  "Return list of sources, one for each file in FILES.")
+
+(defun helm-org-get-source-for-file (file)
+  "Return source for file.
+If file is already open in a buffer, use it.  Otherwise use a
+temp buffer, and kill it when the source's :cleanup function is
+called.")
+
+(defun helm-org-rifle-get-sources-for-open-buffers ()
   "Return list of sources configured for helm-org-rifle.
 One source is returned for each open Org buffer."
   (cl-loop for buffer in (remove-if 'helm-org-rifle-buffer-invisible-p (org-buffer-list nil t))
