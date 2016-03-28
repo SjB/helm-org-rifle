@@ -776,3 +776,144 @@ Headings with priorities should be correctly displayed in results.
 *** [#B] Priority target heading
 
 Baby elephant
+
+** MAYBE Match only headings
+
+It might be nice to only match against headings, but this is not as easy as it might seem.  This whole package is made to search both headings and content.
+
+#+BEGIN_SRC elisp
+(helm-org-rifle-get-candidates-in-buffer (current-buffer) "pink panther *")
+(helm-org-rifle-get-candidates-in-buffer (current-buffer) "target heading only headings")
+#+END_SRC
+
+This is working, but now it seems very slow when searching for only headings.  Need to profile...
+
+*** Profiling
+
+**** Not headings-only
+
+#+BEGIN_SRC elisp :results value
+  (profile-rifle (mapcar (it (helm-org-rifle-get-candidates-in-buffer it "pink panther"))
+                         (remove-if 'helm-org-rifle-buffer-invisible-p (org-buffer-list nil t))))
+#+END_SRC
+
+#+RESULTS:
+#+begin_example txt
+helm-org-rifle-get-candidates-in-buffer                       2           0.032632424   0.016316212
+helm-org-rifle-fontify-like-in-org-mode                       5           0.004744493   0.0009488986
+org-buffer-list                                               1           0.001953921   0.001953921
+org-indent-refresh-maybe                                      10          0.001485419   0.0001485419
+org-indent-add-properties                                     10          0.000740265   7.402...e-05
+org-get-limited-outline-regexp                                20          0.0006676270  3.338135e-05
+string-match                                                  143         0.0005930050  4.146...e-06
+org-heading-components                                        6           0.0005382690  8.971...e-05
+s-contains?                                                   46          0.0005130080  1.115...e-05
+org-back-to-heading                                           16          0.0002770099  1.731...e-05
+org-indent-notify-modified-headline                           10          0.0001112590  1.112...e-05
+org-do-latex-and-related                                      5           9.4481e-05    1.88962e-05
+org-fontify-meta-lines-and-blocks                             5           8.4284e-05    1.685...e-05
+org-activate-plain-links                                      5           8.4075e-05    1.6815e-05
+org-activate-footnote-links                                   5           8.1035e-05    1.6207e-05
+org-string-nw-p                                               5           7.1913e-05    1.43826e-05
+s-join                                                        21          6.480...e-05  3.086...e-06
+org-unfontify-region                                          5           6.1976e-05    1.239...e-05
+org-at-heading-p                                              18          6.0225e-05    3.345...e-06
+org-footnote-next-reference-or-definition                     5           5.948...e-05  1.189...e-05
+#+end_example
+
+#+BEGIN_SRC elisp :results value
+  (profile-rifle (mapcar (it (helm-org-rifle-get-candidates-in-buffer it "pink panther"))
+                         (list (current-buffer))))
+#+END_SRC
+
+#+RESULTS:
+#+begin_example txt
+helm-org-rifle-get-candidates-in-buffer                       1           0.007814541   0.007814541
+helm-org-rifle-fontify-like-in-org-mode                       5           0.003990422   0.0007980844
+org-indent-refresh-maybe                                      10          0.001003627   0.0001003627
+org-indent-add-properties                                     10          0.0005215269  5.215...e-05
+org-get-limited-outline-regexp                                20          0.0004181129  2.090565e-05
+s-contains?                                                   38          0.000404818   1.065...e-05
+string-match                                                  55          0.0003372669  6.132...e-06
+org-heading-components                                        5           0.000277436   5.54872e-05
+org-indent-notify-modified-headline                           10          0.00010477    1.0477e-05
+org-do-latex-and-related                                      5           9.3829e-05    1.87658e-05
+org-back-to-heading                                           15          9.2778e-05    6.1852e-06
+org-activate-footnote-links                                   5           8.772...e-05  1.75452e-05
+org-fontify-meta-lines-and-blocks                             5           8.640...e-05  1.728...e-05
+org-activate-plain-links                                      5           8.282...e-05  1.656...e-05
+org-string-nw-p                                               5           7.1822e-05    1.436...e-05
+org-unfontify-region                                          5           6.8935e-05    1.3787e-05
+org-footnote-next-reference-or-definition                     5           6.192...e-05  1.238...e-05
+s-join                                                        20          5.957...e-05  2.978...e-06
+org-fontify-meta-lines-and-blocks-1                           5           5.9182e-05    1.183...e-05
+org-activate-tags                                             5           5.190...e-05  1.0382e-05
+#+end_example
+
+**** Headings-only
+
+#+BEGIN_SRC elisp :results value
+  (profile-rifle (mapcar (it (helm-org-rifle-get-candidates-in-buffer it "pink panther *"))
+                         (remove-if 'helm-org-rifle-buffer-invisible-p (org-buffer-list nil t))))
+#+END_SRC
+
+#+RESULTS:
+#+begin_example txt
+helm-org-rifle-get-candidates-in-buffer                       2           0.9368067790  0.4684033895
+org-heading-components                                        766         0.3169705419  0.0004137996
+org-back-to-heading                                           768         0.0371738529  4.840...e-05
+s-contains?                                                   2303        0.0256454789  1.113...e-05
+s-pad-left                                                    766         0.0038448910  5.019...e-06
+string-match                                                  2386        0.0026415559  1.107...e-06
+org-buffer-list                                               1           0.001925506   0.001925506
+helm-org-rifle-fontify-like-in-org-mode                       1           0.001341917   0.001341917
+s-join                                                        768         0.0012627070  1.644...e-06
+s--truthy?                                                    2303        0.0009982769  4.334...e-07
+org-reduced-level                                             766         0.0006232969  8.137...e-07
+org-indent-refresh-maybe                                      2           0.000423819   0.0002119095
+string-to-char                                                767         0.0002989519  3.897...e-07
+org-indent-add-properties                                     2           0.0002880319  0.0001440159
+org-get-limited-outline-regexp                                4           0.0001165470  2.913...e-05
+org-activate-footnote-links                                   1           5.8624e-05    5.8624e-05
+org-indent-notify-modified-headline                           2           3.8129e-05    1.90645e-05
+helm-org-rifle-buffer-invisible-p                             3           2.424e-05     8.079...e-06
+org-hide-wide-columns                                         1           2.2629e-05    2.2629e-05
+org-activate-plain-links                                      1           1.8045e-05    1.8045e-05
+#+end_example
+
+#+BEGIN_SRC elisp :results value
+  (profile-rifle (mapcar (it (helm-org-rifle-get-candidates-in-buffer it "pink panther *"))
+                         (list (current-buffer))))
+#+END_SRC
+
+#+RESULTS:
+#+begin_example txt
+helm-org-rifle-get-candidates-in-buffer                       1           0.017409613   0.017409613
+org-heading-components                                        47          0.0015237890  3.242...e-05
+s-contains?                                                   146         0.0014557420  9.970...e-06
+helm-org-rifle-fontify-like-in-org-mode                       1           0.00132478    0.00132478
+org-back-to-heading                                           49          0.0004336459  8.849...e-06
+org-indent-refresh-maybe                                      2           0.0003108350  0.0001554175
+s-pad-left                                                    47          0.000209442   4.456...e-06
+org-get-limited-outline-regexp                                4           0.000153225   3.830625e-05
+org-indent-add-properties                                     2           0.00014145    7.0725e-05
+string-match                                                  150         0.000139654   9.310...e-07
+s-join                                                        49          6.891...e-05  1.406...e-06
+s--truthy?                                                    146         4.990...e-05  3.418...e-07
+org-indent-notify-modified-headline                           2           4.0672e-05    2.0336e-05
+org-reduced-level                                             47          3.271...e-05  6.960...e-07
+org-activate-plain-links                                      1           2.7414e-05    2.7414e-05
+org-do-latex-and-related                                      1           1.9746e-05    1.9746e-05
+org-fontify-meta-lines-and-blocks                             1           1.7599e-05    1.7599e-05
+org-activate-footnote-links                                   1           1.6524e-05    1.6524e-05
+string-to-char                                                48          1.626...e-05  3.388...e-07
+org-unfontify-region                                          1           1.5886e-05    1.5886e-05
+#+end_example
+
+*** Target heading 1 pink panther
+
+blah blah
+
+*** Target heading 2
+
+pink panther

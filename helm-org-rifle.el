@@ -215,6 +215,9 @@ format: (STRING .  POSITION)
 STRING begins with a fontified Org heading and optionally includes further matching parts separated by newlines.
 POSITION is the position in BUFFER where the candidate heading begins."
   (let* ((input (split-string input " " t))
+         (headings-only
+          ;; When "*" is in the input, search only headings
+          (member "*" input))
          (tokens-group-re (when input
                             (concat "\\("
                                     (mapconcat (lambda (token)
@@ -232,7 +235,7 @@ POSITION is the position in BUFFER where the candidate heading begins."
           ;; Get matching lines in node
           (let* ((node-beg (save-excursion
                              (save-match-data
-                               (outline-previous-heading))))
+                               (or (outline-previous-heading) 1))))
                  (components (org-heading-components))
                  (path (when helm-org-rifle-show-path
                          (org-get-outline-path)))
@@ -241,6 +244,7 @@ POSITION is the position in BUFFER where the candidate heading begins."
                              ;; s-join leaves an extra space when there's no
                              ;; priority.
                              (concat "[#" (char-to-string (nth 3 components)) "]")))
+                 (stars (s-pad-left (nth 0 components) "*" ""))
                  (heading (if helm-org-rifle-show-todo-keywords
                               (s-join " " (list (nth 2 components) priority (nth 4 components)))
                             (nth 4 components)))
@@ -269,35 +273,39 @@ POSITION is the position in BUFFER where the candidate heading begins."
 
             ;; Get list of line-strings containing any token
             (setq matching-lines-in-node
-                  (cl-loop for pos in matching-positions-in-node
-                           do (goto-char pos)
-                           ;; Get text of each matching line
-                           for string = (buffer-substring-no-properties (line-beginning-position)
-                                                                        (line-end-position))
-                           unless (org-at-heading-p) ; Leave headings out of list of matched lines
-                           ;; (DISPLAY . REAL) format for Helm
-                           collect `(,string . (,buffer ,pos))))
+                  (unless headings-only
+                    (cl-loop for pos in matching-positions-in-node
+                             do (goto-char pos)
+                             ;; Get text of each matching line
+                             for string = (buffer-substring-no-properties (line-beginning-position)
+                                                                          (line-end-position))
+                             unless (org-at-heading-p) ; Leave headings out of list of matched lines
+                             ;; (DISPLAY . REAL) format for Helm
+                             collect `(,string . (,buffer ,pos)))))
 
             ;; Verify all tokens are contained in each matching node
             (when (cl-loop for token in input
                            ;; Include the buffer name and heading in
                            ;; the check, even though they're not
                            ;; included in the list of matching lines
-                           always (cl-loop for m in (append (list buffer-name heading) (map 'list 'car matching-lines-in-node))
+                           always (cl-loop for m in (append (list buffer-name stars heading)
+                                                            (unless headings-only
+                                                              (map 'list 'car matching-lines-in-node)))
                                            thereis (s-contains? token m t)))
               ;; Node matches all tokens
               (setq matched-words-with-context
-                    (cl-loop for line in (map 'list 'car matching-lines-in-node)
-                             append (cl-loop with end
-                                             for token in input
-                                             for re = (rx-to-string `(and (repeat 0 ,helm-org-rifle-context-characters not-newline)
-                                                                          (eval token)
-                                                                          (repeat 0 ,helm-org-rifle-context-characters not-newline)))
-                                             for match = (string-match re line end)
-                                             if match
-                                             do (setq end (match-end 0))
-                                             and collect (match-string-no-properties 0 line)
-                                             else do (setq end nil))))
+                    (unless headings-only
+                      (cl-loop for line in (map 'list 'car matching-lines-in-node)
+                               append (cl-loop with end
+                                               for token in input
+                                               for re = (rx-to-string `(and (repeat 0 ,helm-org-rifle-context-characters not-newline)
+                                                                            (eval token)
+                                                                            (repeat 0 ,helm-org-rifle-context-characters not-newline)))
+                                               for match = (string-match re line end)
+                                               if match
+                                               do (setq end (match-end 0))
+                                               and collect (match-string-no-properties 0 line)
+                                               else do (setq end nil)))))
 
               ;; Return list in format: (string-joining-heading-and-lines-by-newlines node-beg)
               (push (list (s-join "\n" (list (if (and helm-org-rifle-show-path
@@ -307,13 +315,10 @@ POSITION is the position in BUFFER where the candidate heading begins."
                                                    (s-join "/" (append path (list heading))))
                                                (if helm-org-rifle-fontify-headings
                                                    (helm-org-rifle-fontify-like-in-org-mode
-                                                    (s-join " " (list
-                                                                 (s-pad-left (nth 0 components) "*" "")
-                                                                 heading)))
-                                                 (s-join " " (list
-                                                              (s-pad-left (nth 0 components) "*" "")
-                                                              heading))))
-                                             (s-join "..." matched-words-with-context)))
+                                                    (s-join " " (list stars heading)))
+                                                 (s-join " " (list stars heading))))
+                                             (unless headings-only
+                                               (s-join "..." matched-words-with-context))))
                           node-beg)
                     results))
             ;; Go to end of node
