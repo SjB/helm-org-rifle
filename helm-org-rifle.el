@@ -324,7 +324,7 @@ POSITION is the position in BUFFER where the candidate heading begins."
                                                for match = (string-match re line end)
                                                if match
                                                do (setq end (match-end 0))
-                                               and collect (match-string-no-properties 0 line)
+                                               and collect (s-trim (match-string-no-properties 0 line))
                                                else do (setq end nil))))
 
                 ;; Return list in format: (string-joining-heading-and-lines-by-newlines node-beg)
@@ -352,7 +352,7 @@ POSITION is the position in BUFFER where the candidate heading begins."
                                                                      heading
                                                                      (when helm-org-rifle-show-tags
                                                                        tags)))))
-                                               (s-join "..." matched-words-with-context)))
+                                               (concat "…" (s-join "…" matched-words-with-context) "…")))
                             node-beg)
                       results))
               ;; Go to end of node
